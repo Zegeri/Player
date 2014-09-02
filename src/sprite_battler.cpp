@@ -57,7 +57,8 @@ void Sprite_Battler::Update() {
 	Sprite::Update();
 
 	++cycle;
-	
+
+	SetVisible(!battler->IsHidden());
 	if (battler->GetBattleAnimationId() <= 0) {
 		if (anim_state == AnimationState_Idle) {
 			SetOpacity(255);
