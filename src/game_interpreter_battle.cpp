@@ -198,19 +198,39 @@ bool Game_Interpreter_Battle::CommandChangeBattleBG(RPG::EventCommand const& com
 }
 
 bool Game_Interpreter_Battle::CommandShowBattleAnimation(RPG::EventCommand const& com) {
+	if (active)
+		return Main_Data::game_screen->IsBattleAnimationWaiting();
+
 	int animation_id = com.parameters[0];
 	int target = com.parameters[1];
 	bool wait = com.parameters[2] != 0;
 	bool allies = com.parameters[3] != 0;
 
-	// TODO
-	//Battle::Ally* ally = (allies && target >= 0) ? Game_Battle::FindAlly(target) : NULL;
-	//Battle::Enemy* enemy = (!allies && target >= 0) ? &Game_Battle::GetEnemy(target) : NULL;
+	if (target != -1) {
+		// Single battler
+		Game_Battler* battler;
+		if (allies) {
+			battler = Game_Actors::GetActor(target);
+		} else {
+			battler = &(*Main_Data::game_enemyparty)[target];
+		}
 
-	if (active)
-		return Main_Data::game_screen->IsBattleAnimationWaiting();
+		Main_Data::game_screen->ShowBattleAnimation(animation_id, battler->GetBattleX(), battler->GetBattleY(), false);
+	} else {
+		// Entire party
+		std::vector<Game_Battler*> battlers;
+		std::vector<Game_Battler*>::iterator battler_it;
+		if (allies) {
+			Main_Data::game_party->GetBattlers(battlers);
+		} else {
+			Main_Data::game_enemyparty->GetBattlers(battlers);
+		}
 
-	//Main_Data::game_screen->ShowBattleAnimation(animation_id);
+		for (battler_it = battlers.begin(); battler_it != battlers.end(); ++battler_it) {
+			// FIXME: Currently Game_Screen supports only one battle animation at a time
+			Main_Data::game_screen->ShowBattleAnimation(animation_id, (*battler_it)->GetBattleX(), (*battler_it)->GetBattleY(), false);
+		}
+	}
 
 	return !wait;
 }
