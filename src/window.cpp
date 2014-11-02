@@ -47,6 +47,9 @@ Window::Window():
 	opacity(255),
 	back_opacity(255),
 	contents_opacity(255),
+	final_x(0),
+	final_y(0),
+	move_frames(0),
 	cursor_frame(0),
 	pause_frame(0),
 	animation_frames(0),
@@ -91,6 +94,15 @@ void Window::SetCloseAnimation(int frames) {
 	} else {
 		visible = false;
 	}
+}
+
+void Window::SetMoveAnimation(int nx, int ny, int frames) {
+	final_x = nx;
+	final_y = ny;
+	move_frames = frames;
+}
+void Window::SetMoveAnimation(int nx, int frames) {
+	SetMoveAnimation(nx, y, frames);
 }
 
 void Window::Draw() {
@@ -343,12 +355,18 @@ void Window::RefreshCursor() {
 
 void Window::Update() {
 	if (active) {
-		cursor_frame += 1;
+		cursor_frame++;
 		if (cursor_frame > 32) cursor_frame = 0;
 		if (pause) {
 			pause_frame += 1;
 			if (pause_frame == 40) pause_frame = 0;
 		}
+	}
+
+	if (move_frames > 0) {
+		x += (final_x - x) / move_frames;
+		y += (final_y - y) / move_frames;
+		move_frames--;
 	}
 }
 

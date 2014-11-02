@@ -78,6 +78,8 @@ public:
 	void SetContentsOpacity(int ncontents_opacity);
 	void SetOpenAnimation(int frames);
 	void SetCloseAnimation(int frames);
+	void SetMoveAnimation(int nx, int ny, int frames);
+	void SetMoveAnimation(int nx, int frames);
 
 	DrawableType GetType() const;
 
@@ -118,6 +120,10 @@ private:
 	bool background_needs_refresh;
 	bool frame_needs_refresh;
 	bool cursor_needs_refresh;
+
+	int final_x;
+	int final_y;
+	int move_frames;
 
 	int cursor_frame;
 	int pause_frame;
