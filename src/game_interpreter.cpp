@@ -62,6 +62,13 @@ Game_Interpreter::Game_Interpreter(int depth, bool main_flag, std::shared_ptr<RP
 	list = &(commands->commands);
 	commands->ID = depth + 1;
 
+	if (data->keyinput_wait && commands->current_command > 0) {
+		// Evaluate again the KeyInputProc command to fix the keyinput_variable overflow
+		// and the ambiguous parameters between different versions of the engine
+		commands->current_command--;
+		data->keyinput_wait = false;
+	}
+
 	if (depth > 100) {
 		Output::Warning("Too many event calls (over 9000)");
 	}
@@ -181,6 +188,20 @@ void Game_Interpreter::Update() {
 		if (data->wait_time > 0) {
 			data->wait_time--;
 			break;
+		}
+
+		if (data->wait_movement) {
+			if (Game_Map::IsAnyMovePending())
+				break;
+			else
+				data->wait_movement = false;
+		}
+
+		if (data->keyinput_wait) {
+			if (CheckKeyInput())
+				data->keyinput_wait = false;
+			else
+				break;
 		}
 
 		if (Game_Temp::forcing_battler != NULL) {
@@ -874,6 +895,69 @@ Game_Character* Game_Interpreter::GetCharacter(int character_id) const {
 		Output::Warning("Unknown event with id %d", character_id);
 	}
 	return ch;
+}
+
+bool Game_Interpreter::CheckKeyInput() {
+	int result = 0;
+
+	// Use a function pointer to check triggered keys if it waits for input and pressed keys otherwise
+	bool (*check)(Input::InputButton) = data->keyinput_wait ? Input::IsTriggered : Input::IsPressed;
+
+	if (data->keyinput_down && check(Input::DOWN)) {
+		result = 1;
+	}
+	if (data->keyinput_left && check(Input::LEFT)) {
+		result = 2;
+	}
+	if (data->keyinput_right && check(Input::RIGHT)) {
+		result = 3;
+	}
+	if (data->keyinput_up && check(Input::UP)) {
+		result = 4;
+	}
+	if (data->keyinput_decision && check(Input::DECISION)) {
+		result = 5;
+	}
+	if (data->keyinput_cancel && check(Input::CANCEL)) {
+		result = 6;
+	}
+	if (data->keyinput_shift && check(Input::SHIFT)) {
+		result = 7;
+	}
+	if (data->keyinput_numbers) {
+		for (int i = 0; i < 10; ++i) {
+			if (check((Input::InputButton)(Input::N0 + i))) {
+				result = 10 + i;
+			}
+		}
+	}
+	if (data->keyinput_operators) {
+		for (int i = 0; i < 5; ++i) {
+			if (check((Input::InputButton)(Input::PLUS + i))) {
+				result = 20 + i;
+			}
+		}
+	}
+
+	Game_Variables[keyinput_var] = result;
+	Game_Map::SetNeedRefresh(Game_Map::Refresh_Map);
+
+	if (!data->keyinput_wait)
+		return true;
+
+	button_timer++;
+
+	if (result == 0)
+		return false;
+
+	if (data->keyinput_timed) {
+		// 10 per second
+		Game_Variables[data->keyinput_time_variable] = (int)((float)button_timer / Graphics::GetDefaultFps() * 10);
+	}
+
+	button_timer = 0;
+
+	return true;
 }
 
 // Change Gold.

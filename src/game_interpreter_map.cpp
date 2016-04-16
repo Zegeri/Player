@@ -1423,7 +1423,8 @@ bool Game_Interpreter_Map::CommandChangeEncounterRate(RPG::EventCommand const& c
 }
 
 bool Game_Interpreter_Map::CommandProceedWithMovement(RPG::EventCommand const& /* com */) { // code 11340
-	return !Game_Map::IsAnyMovePending();
+	data->wait_movement = true;
+	return true;
 }
 
 bool Game_Interpreter_Map::CommandPlayMovie(RPG::EventCommand const& com) { // code 11560
@@ -1450,113 +1451,58 @@ bool Game_Interpreter_Map::CommandChangeBattleCommands(RPG::EventCommand const& 
 }
 
 bool Game_Interpreter_Map::CommandKeyInputProc(RPG::EventCommand const& com) { // code 11610
-	int var_id = com.parameters[0];
-	bool wait = com.parameters[1] != 0;
+	// Notice that data->keyinput_variable is uint8_t, it will overflow if keyinput_var > 255
+	keyinput_var = com.parameters[0];
+	data->keyinput_variable = keyinput_var & 0xFF;
 
-	// Wait the first frame so that it ignores keys that were pressed before this command started.
-	if (wait && button_timer == 0) {
-		button_timer++;
-		return false;
-	}
+	data->keyinput_wait          = com.parameters[1] != 0;
+	data->keyinput_decision      = com.parameters[3] != 0;
+	data->keyinput_cancel        = com.parameters[4] != 0;
+	data->keyinput_numbers       = false;
+	data->keyinput_operators     = false;
+	data->keyinput_time_variable = 0;
+	data->keyinput_timed         = false;
+	data->keyinput_shift         = false;
+	data->keyinput_down          = false;
+	data->keyinput_left          = false;
+	data->keyinput_right         = false;
+	data->keyinput_up            = false;
 
-	bool time = false;
-	int time_id = 0;
-
-	bool check_decision = com.parameters[3] != 0;
-	bool check_cancel   = com.parameters[4] != 0;
-	bool check_numbers  = false;
-	bool check_arith    = false;
-	bool check_shift    = false;
-	bool check_down     = false;
-	bool check_left     = false;
-	bool check_right    = false;
-	bool check_up       = false;
-	int result = 0;
 	size_t param_size = com.parameters.size();
-
-	// Use a function pointer to check triggered keys if it waits for input and pressed keys otherwise
-	bool (*check)(Input::InputButton) = wait ? Input::IsTriggered : Input::IsPressed;
 
 	if (param_size < 6) {
 		// For Rpg2k <1.50
-		bool check_dir = com.parameters[2] != 0;
-		check_down  = check_dir;
-		check_left  = check_dir;
-		check_right = check_dir;
-		check_up    = check_dir;
+		bool check_dir       = com.parameters[2] != 0;
+		data->keyinput_down  = check_dir;
+		data->keyinput_left  = check_dir;
+		data->keyinput_right = check_dir;
+		data->keyinput_up    = check_dir;
 	} else if (param_size < 11) {
 		// For Rpg2k >=1.50
-		check_shift = com.parameters[5] != 0;
-		check_down  = param_size > 6 ? com.parameters[6] != 0 : false;
-		check_left  = param_size > 7 ? com.parameters[7] != 0 : false;
-		check_right = param_size > 8 ? com.parameters[8] != 0 : false;
-		check_up    = param_size > 9 ? com.parameters[9] != 0 : false;
+		data->keyinput_shift = com.parameters[5] != 0;
+		data->keyinput_down  = param_size > 6 ? com.parameters[6] != 0 : false;
+		data->keyinput_left  = param_size > 7 ? com.parameters[7] != 0 : false;
+		data->keyinput_right = param_size > 8 ? com.parameters[8] != 0 : false;
+		data->keyinput_up    = param_size > 9 ? com.parameters[9] != 0 : false;
 	} else {
 		// For Rpg2k3
-		check_numbers  = com.parameters[5] != 0;
-		check_arith    = com.parameters[6] != 0;
-		time_id        = com.parameters[7];
-		time           = com.parameters[8] != 0;
-		check_shift    = com.parameters[9] != 0;
-		check_down     = com.parameters[10] != 0;
-		check_left     = param_size > 11 ? com.parameters[11] != 0 : false;
-		check_right    = param_size > 12 ? com.parameters[12] != 0 : false;
-		check_up       = param_size > 13 ? com.parameters[13] != 0 : false;
+		data->keyinput_numbers       = com.parameters[5] != 0;
+		data->keyinput_operators     = com.parameters[6] != 0;
+		data->keyinput_time_variable = com.parameters[7];
+		data->keyinput_timed         = com.parameters[8] != 0;
+		data->keyinput_shift         = com.parameters[9] != 0;
+		data->keyinput_down          = com.parameters[10] != 0;
+		data->keyinput_left          = param_size > 11 ? com.parameters[11] != 0 : false;
+		data->keyinput_right         = param_size > 12 ? com.parameters[12] != 0 : false;
+		data->keyinput_up            = param_size > 13 ? com.parameters[13] != 0 : false;
 	}
 
-	if (check_down && check(Input::DOWN)) {
-		result = 1;
+	// Wait the first frame so that it ignores keys that were pressed before this command started.
+	if (data->keyinput_wait && button_timer == 0) {
+		button_timer++;
+	} else {
+		CheckKeyInput();
 	}
-	if (check_left && check(Input::LEFT)) {
-		result = 2;
-	}
-	if (check_right && check(Input::RIGHT)) {
-		result = 3;
-	}
-	if (check_up && check(Input::UP)) {
-		result = 4;
-	}
-	if (check_decision && check(Input::DECISION)) {
-		result = 5;
-	}
-	if (check_cancel && check(Input::CANCEL)) {
-		result = 6;
-	}
-	if (check_shift && check(Input::SHIFT)) {
-		result = 7;
-	}
-	if (check_numbers) {
-		for (int i = 0; i < 10; ++i) {
-			if (check((Input::InputButton)(Input::N0 + i))) {
-				result = 10 + i;
-			}
-		}
-	}
-	if (check_arith) {
-		for (int i = 0; i < 5; ++i) {
-			if (check((Input::InputButton)(Input::PLUS + i))) {
-				result = 20 + i;
-			}
-		}
-	}
-
-	Game_Variables[var_id] = result;
-	Game_Map::SetNeedRefresh(Game_Map::Refresh_Map);
-
-	if (!wait)
-		return true;
-
-	button_timer++;
-
-	if (result == 0)
-		return false;
-
-	if (time) {
-		// 10 per second
-		Game_Variables[time_id] = (int)((float)button_timer / Graphics::GetDefaultFps() * 10);
-	}
-
-	button_timer = 0;
 
 	return true;
 }

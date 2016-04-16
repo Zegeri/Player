@@ -94,12 +94,16 @@ protected:
 	bool updating = false;
 	bool clear_child = false;
 
+	int keyinput_var;
+
 	/**
 	 * Gets strings for choice selection.
 	 * This is just a helper (private) method
 	 * to avoid repeating code.
 	 */
 	std::vector<std::string> GetChoices();
+
+	bool CheckKeyInput();
 
 	/**
 	 * Calculates operated value.
