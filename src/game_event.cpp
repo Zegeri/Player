@@ -62,10 +62,8 @@ Game_Event::Game_Event(int /* map_id */, const RPG::Event& event, const RPG::Sav
 	this->data = data;
 	MoveTo(data.position_x, data.position_y);
 
-	if (!data.event_data.commands.empty()) {
-		interpreter.reset(new Game_Interpreter_Map());
-		static_cast<Game_Interpreter_Map*>(interpreter.get())->SetupFromSave(data.event_data.commands, event.ID);
-	}
+	if (!data.event_data.commands.empty())
+		interpreter.reset(new Game_Interpreter_Map(0, false, std::make_shared<RPG::SaveEventData>(data.event_data)));
 
 	Refresh();
 }
@@ -692,7 +690,7 @@ const RPG::EventPage* Game_Event::GetPage(int page) const {
 
 const RPG::SaveMapEvent& Game_Event::GetSaveData() {
 	if (interpreter) {
-		data.event_data.commands = static_cast<Game_Interpreter_Map*>(interpreter.get())->GetSaveData();
+		data.event_data = static_cast<Game_Interpreter_Map*>(interpreter.get())->GetSaveData();
 	}
 	data.ID = ID;
 

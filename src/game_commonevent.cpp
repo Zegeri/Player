@@ -28,8 +28,7 @@ Game_CommonEvent::Game_CommonEvent(int common_event_id) :
 
 void Game_CommonEvent::SetSaveData(const RPG::SaveEventData& data) {
 	if (!data.commands.empty()) {
-		interpreter.reset(new Game_Interpreter_Map());
-		interpreter->SetupFromSave(data.commands, 0);
+		interpreter.reset(new Game_Interpreter_Map(0, false, std::make_shared<RPG::SaveEventData>(data)));
 	}
 
 	Refresh();
@@ -98,11 +97,5 @@ std::vector<RPG::EventCommand>& Game_CommonEvent::GetList() {
 }
 
 RPG::SaveEventData Game_CommonEvent::GetSaveData() {
-	RPG::SaveEventData event_data;
-
-	if (interpreter) {
-		event_data.commands = interpreter->GetSaveData();
-	}
-
-	return event_data;
+	return interpreter ? interpreter->GetSaveData() : RPG::SaveEventData();
 }

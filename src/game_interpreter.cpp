@@ -20,6 +20,7 @@
 #include <iostream>
 #include <sstream>
 #include "game_interpreter.h"
+#include "game_interpreter_map.h"
 #include "audio.h"
 #include "game_map.h"
 #include "game_event.h"
@@ -32,6 +33,7 @@
 #include "game_system.h"
 #include "game_message.h"
 #include "game_picture.h"
+#include "reader_lcf.h"
 #include "spriteset_map.h"
 #include "sprite_character.h"
 #include "scene_map.h"
@@ -43,33 +45,40 @@
 #include "player.h"
 #include "util_macro.h"
 
-Game_Interpreter::Game_Interpreter(int _depth, bool _main_flag) {
-	depth = _depth;
-	main_flag = _main_flag;
-	index = 0;
-	updating = false;
-	clear_child = false;
-	runned = false;
+Game_Interpreter::Game_Interpreter(int depth, bool main_flag, std::shared_ptr<RPG::SaveEventData> _data) :
+	depth(depth),
+	main_flag(main_flag) {
+
+	data = _data ? _data : std::make_shared<RPG::SaveEventData>();
+
+	if (data->commands.size() <= depth + 1) {
+		data->commands.resize(depth + 1);
+	} else {
+		// This isn't the deepest interpreter needed, create a deeper child interpreter
+		child_interpreter.reset(new Game_Interpreter_Map(depth + 1, main_flag, data));
+	}
+
+	commands = &(data->commands[depth]);
+	list = &(commands->commands);
+	commands->ID = depth + 1;
 
 	if (depth > 100) {
 		Output::Warning("Too many event calls (over 9000)");
 	}
-
-	Clear();
 }
 
- Game_Interpreter::~Game_Interpreter() {
- }
+Game_Interpreter::~Game_Interpreter() {
+}
 
 // Clear.
 void Game_Interpreter::Clear() {
 	map_id = 0;						// map ID when starting up
-	event_id = 0;					// event ID
-	wait_count = 0;					// wait count
+	commands->event_id = 0;
+	data->wait_time = 0;
 	waiting_battle_anim = false;
 	waiting_pan_screen = false;
-	triggered_by_decision_key = false;
-	continuation = NULL;			// function to execute to resume command
+	commands->actioned = false;
+	continuation = nullptr;			// function to execute to resume command
 	button_timer = 0;
 	if (child_interpreter) {		// clear child interpreter for called events
 		if (child_interpreter->updating)
@@ -77,12 +86,12 @@ void Game_Interpreter::Clear() {
 		else
 			child_interpreter.reset();
 	}
-	list.clear();
+	list->clear();
 }
 
 // Is interpreter running.
 bool Game_Interpreter::IsRunning() const {
-	return !list.empty();
+	return !list->empty();
 }
 
 // Setup.
@@ -95,14 +104,13 @@ void Game_Interpreter::Setup(
 	Clear();
 
 	map_id = Game_Map::GetMapId();
-	event_id = _event_id;
-	list = _list;
-	triggered_by_decision_key = started_by_decision_key;
+	commands->event_id = _event_id;
+	commands->current_command = 0;
+	*list = _list;
+	commands->actioned = started_by_decision_key;
 
 	debug_x = dbg_x;
 	debug_y = dbg_y;
-
-	index = 0;
 
 	CancelMenuCall();
 
@@ -117,9 +125,9 @@ void Game_Interpreter::CancelMenuCall() {
 void Game_Interpreter::SetupWait(int duration) {
 	if (duration == 0) {
 		// 0.0 waits 1 frame
-		wait_count = 1;
+		data->wait_time = 1;
 	} else {
-		wait_count = duration * DEFAULT_FPS / 10;
+		data->wait_time = duration * DEFAULT_FPS / 10;
 	}
 }
 
@@ -140,7 +148,7 @@ void Game_Interpreter::Update() {
 		/* If map is different than event startup time
 		set event_id to 0 */
 		if (Game_Map::GetMapId() != map_id) {
-			event_id = 0;
+			commands->event_id = 0;
 		}
 
 		/* If there's any active child interpreter, update it */
@@ -166,12 +174,12 @@ void Game_Interpreter::Update() {
 			if (Game_Message::message_waiting)
 				break;
 		} else {
-			if ((Game_Message::visible || Game_Message::message_waiting) && Game_Message::owner_id == event_id)
+			if ((Game_Message::visible || Game_Message::message_waiting) && Game_Message::owner_id == commands->event_id)
 				break;
 		}
 
-		if (wait_count > 0) {
-			wait_count--;
+		if (data->wait_time > 0) {
+			data->wait_time--;
 			break;
 		}
 
@@ -197,10 +205,10 @@ void Game_Interpreter::Update() {
 
 		if (continuation) {
 			bool result;
-			if (index >= list.size()) {
+			if (commands->current_command >= list->size()) {
 				result = (this->*continuation)(RPG::EventCommand());
 			} else {
-				result = (this->*continuation)(list[index]);
+				result = (this->*continuation)((*list)[commands->current_command]);
 			}
 
 			if (result)
@@ -213,7 +221,7 @@ void Game_Interpreter::Update() {
 			Game_Map::Refresh();
 		}
 
-		if (list.empty()) {
+		if (list->empty()) {
 			break;
 		}
 
@@ -222,17 +230,12 @@ void Game_Interpreter::Update() {
 			break;
 		}
 
-		// FIXME?
-		// After calling SkipTo this index++ will skip execution of e.g. END.
-		// This causes a different timing because loop_count reaches 10000
-		// faster then Player does.
-		// No idea if any game depends on this special case.
-		index++;
+		commands->current_command++;
 	} // for
 
 	if (loop_count > 9999) {
 		// Executed Events Count exceeded (10000)
-		Output::Debug("Event %d exceeded execution limit", event_id);
+		Output::Debug("Event %d exceeded execution limit", commands->event_id);
 	}
 
 	updating = false;
@@ -260,32 +263,32 @@ bool Game_Interpreter::SkipTo(int code, int code2, int min_indent, int max_inden
 	if (code2 < 0)
 		code2 = code;
 	if (min_indent < 0)
-		min_indent = list[index].indent;
+		min_indent = (*list)[commands->current_command].indent;
 	if (max_indent < 0)
-		max_indent = list[index].indent;
+		max_indent = (*list)[commands->current_command].indent;
 
 	int idx;
-	for (idx = index; (size_t) idx < list.size(); idx++) {
-		if (list[idx].indent < min_indent)
+	for (idx = commands->current_command; (size_t) idx < list->size(); idx++) {
+		if ((*list)[idx].indent < min_indent)
 			return false;
-		if (list[idx].indent > max_indent)
+		if ((*list)[idx].indent > max_indent)
 			continue;
-		if (list[idx].code != code &&
-			list[idx].code != code2)
+		if ((*list)[idx].code != code &&
+			(*list)[idx].code != code2)
 			continue;
-		index = idx;
+		commands->current_command = idx;
 		return true;
 	}
 
 	if (otherwise_end)
-		index = idx;
+		commands->current_command = idx;
 
 	return true;
 }
 
 // Execute Command.
 bool Game_Interpreter::ExecuteCommand() {
-	RPG::EventCommand const& com = list[index];
+	RPG::EventCommand const& com = (*list)[commands->current_command];
 
 	switch (com.code) {
 		case Cmd::ShowMessage:
@@ -370,10 +373,10 @@ bool Game_Interpreter::CommandEnd() { // code 10
 	//	Game_Message::FullClear();
 	//}
 
-	list.clear();
+	list->clear();
 
-	if (main_flag && depth == 0 && event_id > 0) {
-		Game_Event* evnt = Game_Map::GetEvent(event_id);
+	if (main_flag && depth == 0 && commands->event_id > 0) {
+		Game_Event* evnt = Game_Map::GetEvent(commands->event_id);
 		if (evnt)
 			evnt->StopTalkToHero();
 	}
@@ -384,19 +387,19 @@ bool Game_Interpreter::CommandEnd() { // code 10
 // Helper function
 std::vector<std::string> Game_Interpreter::GetChoices() {
 	// Let's find the choices
-	int current_indent = list[index + 1].indent;
+	int current_indent = (*list)[commands->current_command + 1].indent;
 	std::vector<std::string> s_choices;
-	for (unsigned index_temp = index + 1; index_temp < list.size(); ++index_temp) {
-		if (list[index_temp].indent != current_indent) {
+	for (unsigned index_temp = commands->current_command + 1; index_temp < list->size(); ++index_temp) {
+		if ((*list)[index_temp].indent != current_indent) {
 			continue;
 		}
 
-		if (list[index_temp].code == Cmd::ShowChoiceOption) {
+		if ((*list)[index_temp].code == Cmd::ShowChoiceOption) {
 			// Choice found
-			s_choices.push_back(list[index_temp].string);
+			s_choices.push_back((*list)[index_temp].string);
 		}
 
-		if (list[index_temp].code == Cmd::ShowChoiceEnd) {
+		if ((*list)[index_temp].code == Cmd::ShowChoiceEnd) {
 			// End of choices found
 			if (s_choices.size() > 1 && s_choices.back().empty()) {
 				// Remove cancel branch
@@ -421,37 +424,39 @@ bool Game_Interpreter::CommandShowMessage(RPG::EventCommand const& com) { // cod
 	unsigned int line_count = 0;
 
 	Game_Message::message_waiting = true;
-	Game_Message::owner_id = event_id;
+	Game_Message::owner_id = commands->event_id;
 
 	// Set first line
 	Game_Message::texts.push_back(com.string);
 	line_count++;
 
-	for (; index + 1 < list.size(); index++) {
+	int& index = commands->current_command;
+
+	for (; index + 1 < list->size(); index++) {
 		// If next event command is the following parts of the message
-		if (list[index+1].code == Cmd::ShowMessage_2) {
+		if ((*list)[index+1].code == Cmd::ShowMessage_2) {
 			// Add second (another) line
 			line_count++;
-			Game_Message::texts.push_back(list[index+1].string);
+			Game_Message::texts.push_back((*list)[index+1].string);
 		} else {
 			// If next event command is show choices
-			if (list[index+1].code == Cmd::ShowChoice) {
+			if ((*list)[index+1].code == Cmd::ShowChoice) {
 				std::vector<std::string> s_choices = GetChoices();
 				// If choices fit on screen
 				if (s_choices.size() <= (4 - line_count)) {
 					index++;
 					Game_Message::choice_start = line_count;
-					Game_Message::choice_cancel_type = list[index].parameters[0];
+					Game_Message::choice_cancel_type = (*list)[index].parameters[0];
 					SetupChoices(s_choices);
 				}
-			} else if (list[index+1].code == Cmd::InputNumber) {
+			} else if ((*list)[index+1].code == Cmd::InputNumber) {
 				// If next event command is input number
 				// If input number fits on screen
 				if (line_count < 4) {
 					index++;
 					Game_Message::num_input_start = line_count;
-					Game_Message::num_input_digits_max = list[index].parameters[0];
-					Game_Message::num_input_variable_id = list[index].parameters[1];
+					Game_Message::num_input_digits_max = (*list)[index].parameters[0];
+					Game_Message::num_input_variable_id = (*list)[index].parameters[1];
 				}
 			}
 
@@ -483,8 +488,8 @@ bool Game_Interpreter::ContinuationChoices(RPG::EventCommand const& com) {
 	for (;;) {
 		if (!SkipTo(Cmd::ShowChoiceOption, Cmd::ShowChoiceEnd, indent, indent))
 			return false;
-		int which = list[index].parameters[0];
-		index++;
+		int which = (*list)[commands->current_command].parameters[0];
+		commands->current_command++;
 		if (which > Game_Message::choice_result)
 			return false;
 		if (which < Game_Message::choice_result)
@@ -502,7 +507,7 @@ bool Game_Interpreter::CommandShowChoices(RPG::EventCommand const& com) { // cod
 	}
 
 	Game_Message::message_waiting = true;
-	Game_Message::owner_id = event_id;
+	Game_Message::owner_id = commands->event_id;
 
 	// Choices setup
 	std::vector<std::string> choices = GetChoices();
@@ -864,7 +869,7 @@ std::vector<Game_Actor*> Game_Interpreter::GetActors(int mode, int id) {
 
 // Get Character.
 Game_Character* Game_Interpreter::GetCharacter(int character_id) const {
-	Game_Character* ch = Game_Character::GetCharacter(character_id, event_id);
+	Game_Character* ch = Game_Character::GetCharacter(character_id, commands->event_id);
 	if (!ch) {
 		Output::Warning("Unknown event with id %d", character_id);
 	}
@@ -931,7 +936,7 @@ bool Game_Interpreter::CommandInputNumber(RPG::EventCommand const& com) { // cod
 	}
 
 	Game_Message::message_waiting = true;
-	Game_Message::owner_id = event_id;
+	Game_Message::owner_id = commands->event_id;
 
 	Game_Message::num_input_start = 0;
 	Game_Message::num_input_variable_id = com.parameters[1];
@@ -943,7 +948,7 @@ bool Game_Interpreter::CommandInputNumber(RPG::EventCommand const& com) { // cod
 
 // Change Face Graphic.
 bool Game_Interpreter::CommandChangeFaceGraphic(RPG::EventCommand const& com) { // Code 10130
-	if (Game_Message::message_waiting && Game_Message::owner_id != event_id)
+	if (Game_Message::message_waiting && Game_Message::owner_id != commands->event_id)
 		return false;
 
 	Game_Message::SetFaceName(com.string);
@@ -1242,13 +1247,13 @@ bool Game_Interpreter::CommandShakeScreen(RPG::EventCommand const& com) { // cod
 }
 
 bool Game_Interpreter::CommandEndEventProcessing(RPG::EventCommand const& /* com */) { // code 12310
-	index = list.size();
+	commands->current_command = list->size();
 	return true;
 }
 
 bool Game_Interpreter::DefaultContinuation(RPG::EventCommand const& /* com */) {
 	continuation = NULL;
-	index++;
+	commands->current_command++;
 	return true;
 }
 

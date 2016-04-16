@@ -24,7 +24,7 @@
 #include "async_handler.h"
 #include "game_character.h"
 #include "rpg_eventcommand.h"
-#include "rpg_saveeventcommands.h"
+#include "rpg_saveeventdata.h"
 #include "system.h"
 #include "game_interpreter.h"
 
@@ -37,24 +37,14 @@ class Game_CommonEvent;
 class Game_Interpreter_Map : public Game_Interpreter
 {
 public:
-	Game_Interpreter_Map(int _depth = 0, bool _main_flag = false);
-
-	/**
-	* Parses a SaveEventCommand to create an interpreter.
-	*
-	* @param save event to load.
-	* @param index index in the event list.
-	*
-	* @return If the setup was successful (fails when index out of range)
-	*/
-	bool SetupFromSave(const std::vector<RPG::SaveEventCommands>& save, int _event_id, int index = 0);
+	Game_Interpreter_Map(int _depth = 0, bool _main_flag = false, std::shared_ptr<RPG::SaveEventData> _data = nullptr);
 
 	/**
 	 * Generates a SaveEventCommands vector needed for the savefile.
 	 *
 	 * @return interpreter commands stored in SaveEventCommands
 	 */
-	std::vector<RPG::SaveEventCommands> GetSaveData() const;
+	const RPG::SaveEventData& GetSaveData() const;
 
 	bool ExecuteCommand() override;
 

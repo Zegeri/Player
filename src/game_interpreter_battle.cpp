@@ -32,7 +32,7 @@ Game_Interpreter_Battle::Game_Interpreter_Battle(int depth, bool main_flag) :
 
 // Execute Command.
 bool Game_Interpreter_Battle::ExecuteCommand() {
-	if (index >= list.size()) {
+	if (commands->current_command >= list->size()) {
 		return CommandEnd();
 	}
 
@@ -40,7 +40,7 @@ bool Game_Interpreter_Battle::ExecuteCommand() {
 		return false;
 	}
 
-	RPG::EventCommand const& com = list[index];
+	RPG::EventCommand const& com = (*list)[commands->current_command];
 
 	switch (com.code) {
 		case Cmd::CallCommonEvent:

@@ -49,26 +49,8 @@
 #include "filefinder.h"
 #include "reader_lcf.h"
 
-Game_Interpreter_Map::Game_Interpreter_Map(int depth, bool main_flag) :
-	Game_Interpreter(depth, main_flag) {
-}
-
-bool Game_Interpreter_Map::SetupFromSave(const std::vector<RPG::SaveEventCommands>& save, int _event_id, int _index) {
-	if (_index < (int)save.size()) {
-		map_id = Game_Map::GetMapId();
-		event_id = _event_id;
-		list = save[_index].commands;
-		index = save[_index].current_command;
-		triggered_by_decision_key = save[_index].actioned;
-
-		child_interpreter.reset(new Game_Interpreter_Map());
-		bool result = static_cast<Game_Interpreter_Map*>(child_interpreter.get())->SetupFromSave(save, _event_id, _index + 1);
-		if (!result) {
-			child_interpreter.reset();
-		}
-		return true;
-	}
-	return false;
+Game_Interpreter_Map::Game_Interpreter_Map(int depth, bool main_flag, std::shared_ptr<RPG::SaveEventData> data) :
+	Game_Interpreter(depth, main_flag, data) {
 }
 
 // Taken from readers because a kitten is killed when reader_structs is included
@@ -92,30 +74,11 @@ static int GetEventCommandSize(const std::vector<RPG::EventCommand>& commands) {
 	return result;
 }
 
-std::vector<RPG::SaveEventCommands> Game_Interpreter_Map::GetSaveData() const {
-	std::vector<RPG::SaveEventCommands> save;
+const RPG::SaveEventData& Game_Interpreter_Map::GetSaveData() const {
+	for (RPG::SaveEventCommands& event_commands : data->commands)
+		event_commands.commands_size = GetEventCommandSize(event_commands.commands);
 
-	const Game_Interpreter_Map* save_interpreter = this;
-
-	int i = 1;
-
-	if (save_interpreter->list.empty()) {
-		return save;
-	}
-
-	while (save_interpreter != NULL) {
-		RPG::SaveEventCommands save_commands;
-		save_commands.commands = save_interpreter->list;
-		save_commands.current_command = save_interpreter->index;
-		save_commands.commands_size = GetEventCommandSize(save_commands.commands);
-		save_commands.ID = i++;
-		save_commands.event_id = event_id;
-		save_commands.actioned = triggered_by_decision_key;
-		save.push_back(save_commands);
-		save_interpreter = static_cast<Game_Interpreter_Map*>(save_interpreter->child_interpreter.get());
-	}
-
-	return save;
+	return *data;
 }
 
 int Game_Interpreter_Map::DecodeInt(std::vector<int>::const_iterator& it) {
@@ -174,11 +137,11 @@ RPG::MoveCommand Game_Interpreter_Map::DecodeMove(std::vector<int>::const_iterat
  * Execute Command.
  */
 bool Game_Interpreter_Map::ExecuteCommand() {
-	if (index >= list.size()) {
+	if (commands->current_command >= list->size()) {
 		return CommandEnd();
 	}
 
-	RPG::EventCommand const& com = list[index];
+	RPG::EventCommand const& com = (*list)[commands->current_command];
 
 	switch (com.code) {
 		case Cmd::MessageOptions:
@@ -475,7 +438,7 @@ bool Game_Interpreter_Map::CommandRecallToLocation(RPG::EventCommand const& com)
 	if (!main_flag)
 		return true;
 
-	index++;
+	commands->current_command++;
 	return false;
 }
 
@@ -582,7 +545,7 @@ bool Game_Interpreter_Map::CommandTeleport(RPG::EventCommand const& com) { // Co
 	if (!main_flag)
 		return true;
 
-	index++;
+	commands->current_command++;
 	return false;
 }
 
@@ -965,12 +928,12 @@ bool Game_Interpreter_Map::CommandChangePBG(RPG::EventCommand const& com) { // c
 bool Game_Interpreter_Map::CommandJumpToLabel(RPG::EventCommand const& com) { // code 12120
 	int label_id = com.parameters[0];
 
-	for (int idx = 0; (size_t) idx < list.size(); idx++) {
-		if (list[idx].code != Cmd::Label)
+	for (int idx = 0; (size_t) idx < list->size(); idx++) {
+		if ((*list)[idx].code != Cmd::Label)
 			continue;
-		if (list[idx].parameters[0] != label_id)
+		if ((*list)[idx].parameters[0] != label_id)
 			continue;
-		index = idx;
+		commands->current_command = idx;
 		break;
 	}
 
@@ -984,14 +947,14 @@ bool Game_Interpreter_Map::CommandBreakLoop(RPG::EventCommand const& com) { // c
 bool Game_Interpreter_Map::CommandEndLoop(RPG::EventCommand const& com) { // code 22210
 	int indent = com.indent;
 
-	for (int idx = index; idx >= 0; idx--) {
-		if (list[idx].indent > indent)
+	for (int idx = commands->current_command; idx >= 0; idx--) {
+		if ((*list)[idx].indent > indent)
 			continue;
-		if (list[idx].indent < indent)
+		if ((*list)[idx].indent < indent)
 			return false;
-		if (list[idx].code != Cmd::Loop)
+		if ((*list)[idx].code != Cmd::Loop)
 			continue;
-		index = idx;
+		commands->current_command = idx;
 		break;
 	}
 
@@ -1057,7 +1020,7 @@ bool Game_Interpreter_Map::CommandOpenShop(RPG::EventCommand const& com) { // co
 bool Game_Interpreter_Map::ContinuationOpenShop(RPG::EventCommand const& /* com */) {
 	continuation = NULL;
 	if (!Game_Temp::shop_handlers) {
-		index++;
+		commands->current_command++;
 		return true;
 	}
 
@@ -1068,7 +1031,7 @@ bool Game_Interpreter_Map::ContinuationOpenShop(RPG::EventCommand const& /* com 
 		return false;
 	}
 
-	index++;
+	commands->current_command++;
 	return true;
 }
 
@@ -1166,7 +1129,7 @@ bool Game_Interpreter_Map::ContinuationShowInnStart(RPG::EventCommand const& /* 
 
 	if (Game_Temp::inn_handlers)
 		SkipTo(Cmd::NoStay, Cmd::EndInn);
-	index++;
+	commands->current_command++;
 	return true;
 }
 
@@ -1199,7 +1162,7 @@ bool Game_Interpreter_Map::ContinuationShowInnFinish(RPG::EventCommand const& /*
 
 		if (Game_Temp::inn_handlers)
 			SkipTo(Cmd::Stay, Cmd::EndInn);
-		index++;
+		commands->current_command++;
 		return false;
 	}
 
@@ -1281,10 +1244,10 @@ bool Game_Interpreter_Map::ContinuationEnemyEncounter(RPG::EventCommand const& c
 	switch (Game_Temp::battle_result) {
 		case Game_Temp::BattleVictory:
 			if ((Game_Temp::battle_defeat_mode == 0 && Game_Temp::battle_escape_mode != 2) || !SkipTo(Cmd::VictoryHandler, Cmd::EndBattle)) {
-				index++;
+				commands->current_command++;
 				return false;
 			}
-			index++;
+			commands->current_command++;
 			return true;
 		case Game_Temp::BattleEscape:
 			switch (Game_Temp::battle_escape_mode) {
@@ -1295,7 +1258,7 @@ bool Game_Interpreter_Map::ContinuationEnemyEncounter(RPG::EventCommand const& c
 				case 2:
 					if (!SkipTo(Cmd::EscapeHandler, Cmd::EndBattle))
 						return false;
-					index++;
+					commands->current_command++;
 					return true;
 				default:
 					return false;
@@ -1307,7 +1270,7 @@ bool Game_Interpreter_Map::ContinuationEnemyEncounter(RPG::EventCommand const& c
 				case 1:
 					if (!SkipTo(Cmd::DefeatHandler, Cmd::EndBattle))
 						return false;
-					index++;
+					commands->current_command++;
 					return true;
 				default:
 					return false;
@@ -1315,7 +1278,7 @@ bool Game_Interpreter_Map::ContinuationEnemyEncounter(RPG::EventCommand const& c
 		case Game_Temp::BattleAbort:
 			if (!SkipTo(Cmd::EndBattle))
 				return false;
-			index++;
+			commands->current_command++;
 			return true;
 		default:
 			return false;
@@ -1379,10 +1342,10 @@ bool Game_Interpreter_Map::CommandFlashSprite(RPG::EventCommand const& com) { //
 }
 
 bool Game_Interpreter_Map::CommandEraseEvent(RPG::EventCommand const& /* com */) { // code 12320
-	if (event_id == 0)
+	if (commands->event_id == 0)
 		return true;
 
-	Game_Event* evnt = Game_Map::GetEvent(event_id);
+	Game_Event* evnt = Game_Map::GetEvent(commands->event_id);
 	if (evnt)
 		evnt->SetActive(false);
 
@@ -1417,7 +1380,9 @@ bool Game_Interpreter_Map::CommandCallEvent(RPG::EventCommand const& com) { // c
 
 	clear_child = false;
 
-	child_interpreter.reset(new Game_Interpreter_Map(depth + 1, main_flag));
+	child_interpreter.reset(new Game_Interpreter_Map(depth + 1, main_flag, data));
+	commands = &(data->commands[depth]);
+	list = &(commands->commands);
 
 	switch (com.parameters[0]) {
 		case 0: // Common Event
@@ -1722,7 +1687,7 @@ bool Game_Interpreter_Map::CommandShowBattleAnimation(RPG::EventCommand const& c
 		return true;
 
 	if (evt_id == Game_Character::CharThisEvent)
-		evt_id = event_id;
+		evt_id = commands->event_id;
 
 	Game_Map::ShowBattleAnimation(animation_id, evt_id, global);
 
@@ -1991,7 +1956,7 @@ bool Game_Interpreter_Map::CommandConditionalBranch(RPG::EventCommand const& com
 			break;
 		case 8:
 			// Key decision initiated this event
-			result = triggered_by_decision_key;
+			result = commands->actioned;
 			break;
 		case 9:
 			// BGM looped at least once

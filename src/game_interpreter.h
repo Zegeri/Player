@@ -24,6 +24,7 @@
 #include "game_character.h"
 #include "game_actor.h"
 #include "rpg_eventcommand.h"
+#include "rpg_saveeventdata.h"
 #include "system.h"
 #include "command_codes.h"
 
@@ -36,7 +37,7 @@ class Game_CommonEvent;
 class Game_Interpreter
 {
 public:
-	Game_Interpreter(int _depth = 0, bool _main_flag = false);
+	Game_Interpreter(int _depth = 0, bool _main_flag = false, std::shared_ptr<RPG::SaveEventData> _data = nullptr);
 #ifndef EMSCRIPTEN
 	// No idea why but emscripten will complain about a missing destructor when
 	// using virtual here
@@ -74,27 +75,24 @@ protected:
 	int depth;
 	bool main_flag;
 
-	int loop_count;
-	bool runned;
+	int loop_count = 0;
+	bool runned = false;
 
-	unsigned int index;
-	int map_id;
-	unsigned int event_id;
-	int wait_count;
+	int map_id = 0;
 
 	std::unique_ptr<Game_Interpreter> child_interpreter;
 	typedef bool (Game_Interpreter::*ContinuationFunction)(RPG::EventCommand const& com);
-	ContinuationFunction continuation;
+	ContinuationFunction continuation = nullptr;
 
-	std::vector<RPG::EventCommand> list;
+	std::shared_ptr<RPG::SaveEventData> data; // Shared between this and its child interpreter
+	RPG::SaveEventCommands* commands; // Pointer to data->commands[depth]
+	std::vector<RPG::EventCommand>* list; // Pointer to commands->commands
 
-	int button_timer;
-	bool waiting_battle_anim;
-	bool waiting_pan_screen;
-	bool updating;
-	bool clear_child;
-
-	bool triggered_by_decision_key = false;
+	int button_timer = 0;
+	bool waiting_battle_anim = false;
+	bool waiting_pan_screen = false;
+	bool updating = false;
+	bool clear_child = false;
 
 	/**
 	 * Gets strings for choice selection.

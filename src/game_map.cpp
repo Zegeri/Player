@@ -150,7 +150,7 @@ void Game_Map::SetupFromSave() {
 	SetupCommon(location.map_id);
 
 	// Make main interpreter "busy" if save contained events to prevent auto-events from starting
-	interpreter->SetupFromSave(Main_Data::game_data.events.commands, 0);
+	interpreter.reset(new Game_Interpreter_Map(0, true, std::make_shared<RPG::SaveEventData>(Main_Data::game_data.events)));
 
 	events.reserve(map->events.size());
 	for (size_t i = 0; i < map->events.size(); ++i) {
@@ -260,7 +260,7 @@ void Game_Map::SetupCommon(int _id) {
 }
 
 void Game_Map::PrepareSave() {
-	Main_Data::game_data.events.commands = interpreter->GetSaveData();
+	Main_Data::game_data.events = interpreter->GetSaveData();
 
 	map_info.events.clear();
 	map_info.events.reserve(events.size());
