@@ -188,11 +188,9 @@ int Game_Character::GetScreenZ() const {
 
 void Game_Character::Update() {
 	if (IsJumping()) {
-		UpdateJump();
 		if (IsSpinning())
 			anime_count++;
 	} else if (IsMoving()) {
-		remaining_step -= 1 << (1 + GetMoveSpeed());
 		if (IsSpinning() || (animation_type != RPG::EventPage::AnimType_fixed_graphic && walk_animation))
 			anime_count++;
 	} else {
@@ -233,14 +231,19 @@ void Game_Character::Update() {
 		return;
 	}
 
-	if (stop_count >= max_stop_count) {
+	if (IsStopping()) {
 		if (IsMoveRouteOverwritten()) {
 			MoveTypeCustom();
 		} else {
-			// Only events
+			// On events: custom move routes. On player: input movement.
 			UpdateSelfMovement();
 		}
 	}
+
+	if (IsMoving())
+		remaining_step -= 1 << (1 + GetMoveSpeed());
+	else if (IsJumping())
+		UpdateJump();
 }
 
 void Game_Character::UpdateJump() {
@@ -255,6 +258,9 @@ void Game_Character::UpdateSelfMovement() {
 }
 
 void Game_Character::MoveTypeCustom() {
+	if (stop_count < max_stop_count)
+		return;
+
 	// Detect if custom movement or event overwrite
 	const RPG::MoveRoute* active_route;
 	int active_route_index;

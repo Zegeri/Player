@@ -537,6 +537,8 @@ void Game_Event::UpdateSelfMovement() {
 		return;
 	if (!IsStopping())
 		return;
+	if (stop_count < max_stop_count)
+		return;
 
 	switch (move_type) {
 	case RPG::EventPage::MoveType_random:

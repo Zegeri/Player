@@ -32,13 +32,7 @@
 #include <cmath>
 
 Game_Player::Game_Player():
-	location(Main_Data::game_data.party_location),
-	teleporting(false),
-	new_map_id(0),
-	new_x(0),
-	new_y(0),
-	last_pan_x(0),
-	last_pan_y(0) {
+	location(Main_Data::game_data.party_location) {
 	SetDirection(RPG::EventPage::Direction_down);
 	SetMoveSpeed(4);
 }
@@ -297,19 +291,24 @@ void Game_Player::UpdateScroll() {
 	int dy = 0;
 
 	if (!Game_Map::IsPanLocked()) {
-		if (IsMoving()) {
+		if (IsMoving() || last_remaining_step > 0) {
+			if (last_remaining_step == 0)
+				last_remaining_step = SCREEN_TILE_WIDTH;
+
 			int d = GetDirection();
 			if ((d == Right || d == UpRight || d == DownRight) && GetScreenX() >= center_x)
 				dx = 1;
 			else if ((d == Left || d == UpLeft || d == DownLeft) && GetScreenX() <= center_x)
 				dx = -1;
-			dx *= 1 << (1 + GetMoveSpeed());
+			dx *= last_remaining_step - remaining_step;
 
 			if ((d == Down || d == DownRight || d == DownLeft) && GetScreenY() >= center_y)
 				dy = 1;
 			else if ((d == Up || d == UpRight || d == UpLeft) && GetScreenY() <= center_y)
 				dy = -1;
-			dy *= 1 << (1 + GetMoveSpeed());
+			dy *= last_remaining_step - remaining_step;
+
+			last_remaining_step = remaining_step;
 		} else if (IsJumping()) {
 			int move_speed = GetMoveSpeed();
 			int diff = move_speed < 5 ? 48 / (2 + pow(2.0, 3 - move_speed)) : 64 / (7 - move_speed);
@@ -336,32 +335,14 @@ void Game_Player::UpdateScroll() {
 		Game_Map::ScrollUp(-dy);
 }
 
-
 void Game_Player::Update() {
 	bool last_moving = IsMoving() || IsJumping();
-
-	if (IsMovable() && !(Game_Map::GetInterpreter().IsRunning() || Game_Map::GetInterpreter().HasRunned())) {
-		switch (Input::dir4) {
-			case 2:
-				Move(Down);
-				break;
-			case 4:
-				Move(Left);
-				break;
-			case 6:
-				Move(Right);
-				break;
-			case 8:
-				Move(Up);
-		}
-	}
-
-	UpdateScroll();
 
 	// Workaround: If a blocking move route ends in this frame, Game_Player::CancelMoveRoute decides
 	// which events to start. was_blocked is used to avoid triggering events the usual way.
 	bool was_blocked = IsBlockedByMoveRoute();
 	Game_Character::Update();
+	UpdateScroll();
 
 	if (location.aboard)
 		GetVehicle()->SyncWithPlayer();
@@ -404,6 +385,24 @@ void Game_Player::Update() {
 
 	if (last_moving)
 		Game_Map::UpdateEncounterSteps();
+}
+
+void Game_Player::UpdateSelfMovement() {
+	if (IsMovable() && !(Game_Map::GetInterpreter().IsRunning() || Game_Map::GetInterpreter().HasRunned())) {
+		switch (Input::dir4) {
+			case 2:
+				Move(Down);
+				break;
+			case 4:
+				Move(Left);
+				break;
+			case 6:
+				Move(Right);
+				break;
+			case 8:
+				Move(Up);
+		}
+	}
 }
 
 bool Game_Player::CheckActionEvent() {
@@ -605,7 +604,7 @@ bool Game_Player::IsMovable() const {
 		return false;
 	if (Graphics::IsTransitionPending())
 		return false;
-	if (IsBlockedByMoveRoute())
+	if (IsMoveRouteOverwritten())
 		return false;
 	if (Game_Map::IsAnyEventStarting())
 		return false;
