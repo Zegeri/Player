@@ -276,8 +276,10 @@ void Game_Character::MoveTypeCustom() {
 
 	if (IsStopping()) {
 		move_failed = false;
+		// If the move route repeats itself, it shouldn't do the same move command twice
+		int first_route_index = active_route_index;
 
-		for (; (size_t)active_route_index < active_route->move_commands.size(); ++active_route_index) {
+		while ((size_t)active_route_index < active_route->move_commands.size()) {
 			if (!IsStopping() || wait_count > 0 || stop_count < max_stop_count)
 				break;
 
@@ -412,19 +414,29 @@ void Game_Character::MoveTypeCustom() {
 			if (move_failed) {
 				if (active_route->skippable) {
 					last_move_failed = false;
-					continue;
+				} else {
+					break;
 				}
+			}
 
+			active_route_index++;
+			if ((size_t)active_route_index >= active_route->move_commands.size()) {
+				// End of move route
+				if (active_route->repeat) {
+					active_route_index = 0;
+					SetMoveRouteRepeated(true);
+				} else {
+					break;
+				}
+			}
+			if (active_route_index == first_route_index) {
+				// The move route has looped and returned to the first command
 				break;
 			}
 		}
 
 		if ((size_t)active_route_index >= active_route->move_commands.size() && IsStopping()) {
-			// End of Move list
-			if (active_route->repeat) {
-				active_route_index = 0;
-				SetMoveRouteRepeated(true);
-			} else if (IsMoveRouteOverwritten()) {
+			if (IsMoveRouteOverwritten()) {
 				CancelMoveRoute();
 				Game_Map::RemovePendingMove(this);
 				stop_count = 0;
