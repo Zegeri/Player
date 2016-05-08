@@ -336,6 +336,10 @@ void Game_Player::UpdateScroll() {
 }
 
 void Game_Player::Update() {
+	if (updated)
+		return;
+	updated = true;
+
 	bool last_moving = IsMoving() || IsJumping();
 
 	// Workaround: If a blocking move route ends in this frame, Game_Player::CancelMoveRoute decides
@@ -371,7 +375,6 @@ void Game_Player::Update() {
 		Unboard();
 		location.vehicle = Game_Vehicle::None;
 		SetDirection(RPG::EventPage::Direction_down);
-
 	}
 
 	if (last_moving && CheckTouchEvent()) return;

@@ -397,6 +397,10 @@ bool Game_Vehicle::CanLand() const {
 }
 
 void Game_Vehicle::Update() {
+	if (updated)
+		return;
+	updated = true;
+
 	Game_Character::Update();
 
 	if (type == Airship) {

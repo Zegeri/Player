@@ -70,7 +70,7 @@ namespace {
 
 	std::unique_ptr<Game_Interpreter_Map> interpreter;
 	std::vector<std::shared_ptr<Game_Interpreter> > free_interpreters;
-	std::vector<std::shared_ptr<Game_Vehicle> > vehicles;
+	std::vector<Game_Vehicle> vehicles;
 	std::vector<Game_Character*> pending;
 
 	std::unique_ptr<BattleAnimation> animation;
@@ -103,8 +103,9 @@ void Game_Map::Init() {
 	}
 
 	vehicles.clear();
-	for (int i = 0; i < 3; i++)
-		vehicles.push_back(std::make_shared<Game_Vehicle>((Game_Vehicle::Type) (i + 1)));
+	vehicles.reserve(3);
+	for (int i = 1; i <= 3; i++)
+		vehicles.emplace_back((Game_Vehicle::Type) i);
 
 	pan_locked = false;
 	pan_wait = false;
@@ -172,9 +173,9 @@ void Game_Map::SetupFromSave() {
 		common_events[i].SetSaveData(Main_Data::game_data.common_events[i].event_data);
 	}
 
-	for (size_t i = 0; i < 3; i++)
-		if (vehicles[i]->IsMoveRouteOverwritten())
-			pending.push_back(vehicles[i].get());
+	for (Game_Vehicle& vehicle : vehicles)
+		if (vehicle.IsMoveRouteOverwritten())
+			pending.push_back(&vehicle);
 
 	map_info.Fixup(*map.get());
 
@@ -246,8 +247,8 @@ void Game_Map::SetupCommon(int _id) {
 	}
 	Game_System::SetAllowSave(Data::treemap.maps[current_index].save == 1);
 
-	for (size_t i = 0; i < 3; i++)
-		vehicles[i]->Refresh();
+	for (Game_Vehicle& vehicle : vehicles)
+		vehicle.Refresh();
 
 	if (Main_Data::game_player->IsMoveRouteOverwritten())
 		pending.push_back(Main_Data::game_player.get());
@@ -431,28 +432,32 @@ bool Game_Map::IsPassable(int x, int y, int d, const Game_Character* self_event)
 	if (self_event) {
 		bool pass = false;
 		std::vector<Game_Event*> events;
-		std::vector<Game_Event*>::iterator it;
 
 		Game_Map::GetEventsXY(events, x, y);
-		for (it = events.begin(); it != events.end(); ++it) {
-			if (*it == self_event || (*it)->GetThrough()) {
+		for (Game_Event* ev : events) {
+			if (ev == self_event) {
 				continue;
 			}
 
+			// Update its parallel interpreter and its move route if present
+			ev->UpdateParallel();
+			if (!ev->IsInPosition(x, y) || ev->GetThrough())
+				continue;
+
 			if (self_event != Main_Data::game_player.get()) {
-				if (self_event->IsOverlapForbidden() || (*it)->IsOverlapForbidden())
+				if (self_event->IsOverlapForbidden() || ev->IsOverlapForbidden())
 					return false;
 			}
 
-			if ((*it)->GetLayer() == self_event->GetLayer()) {
+			if (ev->GetLayer() == self_event->GetLayer()) {
 				if (self_event->IsInPosition(x, y))
 					pass = true;
 				else
 					return false;
 			}
-			else if ((*it)->GetLayer() == RPG::EventPage::Layers_below) {
+			else if (ev->GetLayer() == RPG::EventPage::Layers_below) {
 				// Event layer Chipset Tile
-				tile_id = (*it)->GetTileId();
+				tile_id = ev->GetTileId();
 				if ((passages_up[tile_id] & Passable::Above) != 0)
 					continue;
 				if ((passages_up[tile_id] & bit) != 0)
@@ -462,8 +467,18 @@ bool Game_Map::IsPassable(int x, int y, int d, const Game_Character* self_event)
 			}
 		}
 
-		if (!self_event->IsInPosition(x, y) && (vehicles[0]->IsInPosition(x, y) || vehicles[1]->IsInPosition(x, y)))
-			return false;
+		if (!self_event->IsInPosition(x, y)) {
+			if (vehicles[0].IsInPosition(x, y)) {
+				vehicles[0].Update();
+				if (vehicles[0].IsInPosition(x, y))
+					return false;
+			}
+			if (vehicles[1].IsInPosition(x, y)) {
+				vehicles[1].Update();
+				if (vehicles[1].IsInPosition(x, y))
+					return false;
+			}
+		}
 
 		if (pass) // All events here are passable
 			return true;
@@ -514,10 +529,10 @@ bool Game_Map::IsPassableVehicle(int x, int y, Game_Vehicle::Type vehicle_type) 
 	for (int i = 0; i < 3; i++) {
 		if (i+1 == vehicle_type)
 			continue;
-		Game_Vehicle* vehicle = vehicles[i].get();
-		if (vehicle->IsInCurrentMap() && vehicle->IsInPosition(x, y) && !vehicle->GetThrough())
+		if (vehicles[i].IsInCurrentMap() && vehicles[i].IsInPosition(x, y) && !vehicles[i].GetThrough())
 			return false;
 	}
+
 
 	return true;
 }
@@ -714,47 +729,53 @@ void Game_Map::UpdateScroll() {
 	}
 }
 
-void Game_Map::Update(bool only_parallel) {
+void Game_Map::Update(bool no_main_interpreter_update) {
 	if (GetNeedRefresh() != Refresh_None) Refresh();
 	UpdateScroll();
 	UpdatePan();
 	UpdateParallax();
 	if (animation) {
 		animation->Update();
-		if (animation->IsDone()) {
+		if (animation->IsDone())
 			animation.reset();
-		}
 	}
 
-	for (Game_CommonEvent& ev : common_events) {
+	// Update parallel interpreters and move routes
+	for (Game_CommonEvent& ev : common_events)
 		ev.UpdateParallel();
-	}
 
-	for (Game_Event& ev : events) {
+	for (Game_Event& ev : events)
 		ev.UpdateParallel();
+
+	for (Game_Vehicle& vehicle : vehicles)
+		vehicle.Update();
+
+	// Update main interpreter and game_player
+	if (!no_main_interpreter_update) {
+		for (Game_Event& ev : events)
+			ev.CheckEventTriggers();
+
+		Main_Data::game_player->Update();
+
+		GetInterpreter().Update();
+
+		for (Game_Event& ev : events)
+			ev.Update();
+
+		for (Game_CommonEvent& ev : common_events)
+			ev.Update();
 	}
 
-	if (only_parallel)
-		return;
+	// Refresh events, vehicles and player flags
+	for (Game_Event& ev : events)
+		ev.FrameRefresh();
 
-	for (Game_Event& ev : events) {
-		ev.CheckEventTriggers();
-	}
+	for (Game_Vehicle& vehicle : vehicles)
+		vehicle.FrameRefresh();
 
-	Main_Data::game_player->Update();
-	GetInterpreter().Update();
+	Main_Data::game_player->FrameRefresh();
 
-	for (Game_Event& ev : events) {
-		ev.Update();
-	}
-
-	for (Game_CommonEvent& ev : common_events) {
-		ev.Update();
-	}
-
-	for (int i = 0; i < 3; ++i)
-		vehicles[i]->Update();
-
+	// Free interpreters that ended this frame
 	free_interpreters.clear();
 }
 
@@ -1062,7 +1083,7 @@ Game_Vehicle* Game_Map::GetVehicle(Game_Vehicle::Type which) {
 	if (which == Game_Vehicle::None) {
 		return NULL;
 	}
-	return vehicles[which - 1].get();
+	return &vehicles[which - 1];
 }
 
 bool Game_Map::IsAnyEventStarting() {

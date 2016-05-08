@@ -226,9 +226,9 @@ namespace Game_Map {
 	/**
 	 * Updates the map state.
 	 *
-	 * @param only_parallel Update only parallel interpreters
+	 * @param no_main_interpreter_update Do not update main interpreter
 	 */
-	void Update(bool only_parallel = false);
+	void Update(bool no_main_interpreter_update = false);
 
 	/**
 	 * Updates the scroll state.

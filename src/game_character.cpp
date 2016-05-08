@@ -115,10 +115,14 @@ bool Game_Character::IsPassable(int x, int y, int d) const {
 	if (!Game_Map::IsPassable(new_x, new_y, (d + 2) % 4, this))
 		return false;
 
-	if (Main_Data::game_player->IsInPosition(new_x, new_y)
-		&& !Main_Data::game_player->GetThrough() && !GetSpriteName().empty()
-		&& GetLayer() == RPG::EventPage::Layers_same) {
-			return false;
+	if (!GetSpriteName().empty() && GetLayer() == RPG::EventPage::Layers_same) {
+		if (Main_Data::game_player->IsInPosition(new_x, new_y)) {
+			Main_Data::game_player->Update();
+			if (Main_Data::game_player->IsInPosition(new_x, new_y) &&
+				!Main_Data::game_player->GetThrough()) {
+					return false;
+			}
+		}
 	}
 
 	return true;
@@ -874,6 +878,10 @@ void Game_Character::SetGraphic(const std::string& name, int index) {
 		tile_id = 0;
 		pattern = RPG::EventPage::Frame_middle;
 	}
+}
+
+void Game_Character::FrameRefresh() {
+	updated = false;
 }
 
 void Game_Character::Flash(Color color, int duration) {

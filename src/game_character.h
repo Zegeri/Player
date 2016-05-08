@@ -653,6 +653,8 @@ public:
 
 	void SetGraphic(const std::string& name, int index);
 
+	void FrameRefresh();
+
 	enum CharsID {
 		CharPlayer		= 10001,
 		CharBoat		= 10002,
@@ -693,6 +695,7 @@ protected:
 	int remaining_step;
 	int move_count;
 	int wait_count;
+	bool updated;
 
 	bool jumping;
 	int jump_x;

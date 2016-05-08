@@ -682,9 +682,10 @@ void Game_Event::Update() {
 }
 
 void Game_Event::UpdateParallel() {
-	if (!data.active || page == NULL) {
+	if (!data.active || page == NULL || updated) {
 		return;
 	}
+	updated = true;
 
 	if (interpreter) {
 		if (!interpreter->IsRunning()) {
