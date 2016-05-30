@@ -34,7 +34,7 @@ Game_Vehicle::Game_Vehicle(Type _type) :
 	driving = false;
 	SetDirection(Left);
 	SetSpriteDirection(Left);
-	walk_animation = type != Airship;
+	SetAnimationPaused(type == Airship);
 	animation_type = RPG::EventPage::AnimType_continuous;
 	LoadSystemSettings();
 }
@@ -199,6 +199,14 @@ void Game_Vehicle::SetFlashTimeLeft(int time_left) {
 	data.flash_time_left = time_left;
 }
 
+bool Game_Vehicle::IsAnimationPaused() const {
+	return data.anim_paused;
+}
+
+void Game_Vehicle::SetAnimationPaused(bool anim_paused) {
+	data.anim_paused = anim_paused;
+}
+
 bool Game_Vehicle::GetThrough() const {
 	return data.through;
 }
@@ -294,7 +302,7 @@ void Game_Vehicle::Refresh() {
 			SetMoveSpeed(RPG::EventPage::MoveSpeed_double);
 			break;
 	}
-	walk_animation = (type != Airship) || driving;
+	SetAnimationPaused((type == Airship) && !driving);
 }
 
 void Game_Vehicle::SetPosition(int _map_id, int _x, int _y) {
@@ -330,7 +338,7 @@ void Game_Vehicle::GetOn() {
 		data.remaining_ascent = SCREEN_TILE_WIDTH;
 		data.flying = true;
 	} else {
-		walk_animation = true;
+		SetAnimationPaused(false);
 	}
 	Game_System::BgmPlay(GetBGM());
 }
@@ -407,7 +415,7 @@ void Game_Vehicle::Update() {
 		if (IsAscending()) {
 			data.remaining_ascent -= 8;
 			if (!IsAscending())
-				walk_animation = true;
+				SetAnimationPaused(false);
 		} else if (IsDescending()) {
 			data.remaining_descent -= 8;
 			if (!IsDescending()) {
@@ -415,7 +423,7 @@ void Game_Vehicle::Update() {
 					SetLayer(RPG::EventPage::Layers_same);
 					driving = false;
 					data.flying = false;
-					walk_animation = false;
+					SetAnimationPaused(true);
 					pattern = 1;
 				} else {
 					// Can't land here, ascend again

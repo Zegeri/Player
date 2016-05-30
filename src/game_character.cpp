@@ -53,7 +53,6 @@ Game_Character::Game_Character() :
 	anime_count(0),
 	stop_count(0),
 	max_stop_count(0),
-	walk_animation(true),
 	cycle_stat(false),
 	opacity(255),
 	visible(true) {
@@ -195,7 +194,7 @@ void Game_Character::Update() {
 		if (IsSpinning())
 			anime_count++;
 	} else if (IsMoving()) {
-		if (IsSpinning() || (animation_type != RPG::EventPage::AnimType_fixed_graphic && walk_animation))
+		if (IsSpinning() || (animation_type != RPG::EventPage::AnimType_fixed_graphic && !IsAnimationPaused()))
 			anime_count++;
 	} else {
 		stop_count++;
@@ -401,10 +400,10 @@ void Game_Character::MoveTypeCustom() {
 				SetThrough(false);
 				break;
 			case RPG::MoveCommand::Code::stop_animation:
-				walk_animation = false;
+				SetAnimationPaused(true);
 				break;
 			case RPG::MoveCommand::Code::start_animation:
-				walk_animation = true;
+				SetAnimationPaused(false);
 				break;
 			case RPG::MoveCommand::Code::increase_transp:
 				SetOpacity(max(40, GetOpacity() - 45));

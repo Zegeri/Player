@@ -85,6 +85,8 @@ public:
 	void SetFlashLevel(double flash_level) override;
 	int GetFlashTimeLeft() const override;
 	void SetFlashTimeLeft(int time_left) override;
+	bool IsAnimationPaused() const override;
+	void SetAnimationPaused(bool anim_paused) override;
 	bool GetThrough() const override;
 	void SetThrough(bool through) override;
 	/** @} */

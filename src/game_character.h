@@ -333,6 +333,20 @@ public:
 	virtual void SetFlashTimeLeft(int time_left) = 0;
 
 	/**
+	 * Gets whether walk animation is paused.
+	 *
+	 * @return whether walk animation is paused.
+	 */
+	virtual bool IsAnimationPaused() const = 0;
+
+	/**
+	 * Sets whether walk animation is paused.
+	 *
+	 * @param anim_paused: Whether walk animation is paused.
+	 */
+	virtual void SetAnimationPaused(bool anim_paused) = 0;
+
+	/**
 	 * Gets the through flag (walk through everything)
 	 *
 	 * @return through flag
@@ -706,7 +720,6 @@ protected:
 	int anime_count;
 	int stop_count;
 	int max_stop_count;
-	bool walk_animation;
 
 	/** used by cycle left-right, up-down */
 	bool cycle_stat;

@@ -220,6 +220,14 @@ void Game_Event::SetFlashTimeLeft(int time_left) {
 	data.flash_time_left = time_left;
 }
 
+bool Game_Event::IsAnimationPaused() const {
+	return data.anim_paused;
+}
+
+void Game_Event::SetAnimationPaused(bool anim_paused) {
+	data.anim_paused = anim_paused;
+}
+
 bool Game_Event::GetThrough() const {
 	return page == nullptr || data.through;
 }

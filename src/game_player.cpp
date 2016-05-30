@@ -195,6 +195,14 @@ void Game_Player::SetFlashTimeLeft(int time_left) {
 	location.flash_time_left = time_left;
 }
 
+bool Game_Player::IsAnimationPaused() const {
+	return location.anim_paused;
+}
+
+void Game_Player::SetAnimationPaused(bool anim_paused) {
+	location.anim_paused = anim_paused;
+}
+
 bool Game_Player::GetThrough() const {
 	return location.through;
 }
