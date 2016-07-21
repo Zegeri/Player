@@ -117,6 +117,14 @@ public:
 	std::string GetName() const;
 
 	/**
+	 * Gets active event page index starting from 1.
+	 * Returns 0 if no event page is active.
+	 *
+	 * @return event page index
+	 */
+	int GetPageIndex() const;
+
+	/**
 	 * Gets starting flag.
 	 *
 	 * @return starting flag.
@@ -226,6 +234,7 @@ private:
 	int trigger = -1;
 	RPG::Event event;
 	RPG::EventPage* page = nullptr;
+	int page_index = 0;
 	std::vector<RPG::EventCommand> list;
 	std::shared_ptr<Game_Interpreter> interpreter;
 	bool from_save;

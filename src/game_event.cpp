@@ -339,11 +339,13 @@ void Game_Event::Refresh() {
 		return;
 	}
 
+	page_index = 0;
 	RPG::EventPage* new_page = NULL;
 	std::vector<RPG::EventPage>::reverse_iterator i;
 	for (i = event.pages.rbegin(); i != event.pages.rend(); ++i) {
 		// Loop in reverse order to see whether any page meets conditions...
 		if (AreConditionsMet(*i)) {
+			page_index = std::distance(event.pages.begin(), i.base());
 			new_page = &(*i);
 			// Stop looking for more...
 			break;
@@ -446,6 +448,10 @@ int Game_Event::GetId() const {
 
 std::string Game_Event::GetName() const {
 	return event.name;
+}
+
+int Game_Event::GetPageIndex() const {
+	return page_index;
 }
 
 bool Game_Event::GetStarting() const {
