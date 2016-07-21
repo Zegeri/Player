@@ -35,6 +35,8 @@ libeasyrpg_player_la_SOURCES = \
 	src/cache.h \
 	src/color.cpp \
 	src/color.h \
+	src/debug_overlay.h \
+	src/debug_overlay.cpp \
 	src/decoder_libsndfile.cpp \
 	src/decoder_libsndfile.h \
 	src/decoder_oggvorbis.cpp \

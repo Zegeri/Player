@@ -66,6 +66,7 @@ void Input::InitButtons() {
 	buttons[MULTIPLY].push_back(Keys::MULTIPLY);
 	buttons[DIVIDE].push_back(Keys::DIVIDE);
 	buttons[PERIOD].push_back(Keys::PERIOD);
+	buttons[DEBUG_MODE].push_back(Keys::F8);
 	buttons[DEBUG_MENU].push_back(Keys::F9);
 	buttons[DEBUG_THROUGH].push_back(Keys::LCTRL);
 	buttons[DEBUG_THROUGH].push_back(Keys::RCTRL);

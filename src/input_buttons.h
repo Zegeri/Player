@@ -49,6 +49,7 @@ namespace Input {
 		MULTIPLY,
 		DIVIDE,
 		PERIOD,
+		DEBUG_MODE,
 		DEBUG_MENU,
 		DEBUG_THROUGH,
 		DEBUG_SAVE,

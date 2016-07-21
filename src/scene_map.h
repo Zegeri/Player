@@ -23,6 +23,7 @@
 #include "spriteset_map.h"
 #include "window_message.h"
 #include "window_varlist.h"
+#include "debug_overlay.h"
 
 /**
  * Scene Map class.
@@ -58,6 +59,7 @@ private:
 	void FinishTeleportPlayer();
 
 	std::unique_ptr<Window_Message> message_window;
+	std::unique_ptr<Debug_Overlay> debug_overlay;
 
 	bool from_save;
 	bool auto_transition = false;
