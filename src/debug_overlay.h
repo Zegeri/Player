@@ -33,7 +33,8 @@ public:
 	void SelectNextDebugMode();
 	enum DebugMode {
 		None = 0,
-		Pages,
+		Pages, // Show event page index, 0 if inactive
+		Pictures, // Show information on active pictures
 		END
 	};
 

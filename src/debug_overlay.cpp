@@ -23,6 +23,8 @@
 #include "graphics.h"
 #include "game_map.h"
 #include "player.h"
+#include "rpg_savepicture.h"
+#include "main_data.h"
 #include "utils.h"
 
 Debug_Overlay::Debug_Overlay() {
@@ -83,6 +85,11 @@ void Debug_Overlay::Draw() {
 				disp->TextDraw(ev->GetScreenX(), ev->GetScreenY() - TILE_SIZE, 
 					i % num_evs, Utils::ToString(ev->GetPageIndex()));
 			}
+		}
+	} else if (debug_mode == DebugMode::Pictures) {
+		for (const RPG::SavePicture& pic : Main_Data::game_data.pictures) {
+			if (!pic.name.empty())
+				disp->TextDraw(pic.current_x, pic.current_y, 1, pic.name);
 		}
 	}
 }
