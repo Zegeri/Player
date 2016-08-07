@@ -29,6 +29,7 @@
 #include "util_macro.h"
 #include "output.h"
 #include "player.h"
+#include "input.h"
 
 namespace Graphics {
 	void UpdateTitle();
@@ -482,5 +483,8 @@ void Graphics::Pop() {
 }
 
 int Graphics::GetDefaultFps() {
+	if (Input::IsPressed(Input::FAST_FORWARD)) {
+		return DEFAULT_FPS * 10;
+	}
 	return DEFAULT_FPS;
 }

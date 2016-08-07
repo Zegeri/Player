@@ -73,6 +73,7 @@ void Input::InitButtons() {
 	buttons[DEBUG_SAVE].push_back(Keys::F11);
 	buttons[TAKE_SCREENSHOT].push_back(Keys::F10);
 	buttons[TOGGLE_FPS].push_back(Keys::F2);
+	buttons[FAST_FORWARD].push_back(Keys::F);
 	buttons[SHOW_LOG].push_back(Keys::F3);
 
 #if defined(USE_MOUSE) && defined(SUPPORT_MOUSE)

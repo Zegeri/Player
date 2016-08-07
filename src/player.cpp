@@ -279,7 +279,7 @@ void Player::Resume() {
 
 void Player::Update(bool update_scene) {
 	// available ms per frame, game logic expects 60 fps
-	static const double framerate_interval = 1000.0 / Graphics::GetDefaultFps();
+	const double framerate_interval = 1000.0 / Graphics::GetDefaultFps();
 	next_frame = start_time + framerate_interval;
 
 #ifdef EMSCRIPTEN
@@ -343,7 +343,7 @@ void Player::FrameReset() {
 	start_time = (double)DisplayUi->GetTicks();
 
 	// available ms per frame, game logic expects 60 fps
-	static const double framerate_interval = 1000.0 / Graphics::GetDefaultFps();
+	const double framerate_interval = 1000.0 / Graphics::GetDefaultFps();
 
 	// When next frame is expected
 	next_frame = start_time + framerate_interval;
